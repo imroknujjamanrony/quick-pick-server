@@ -26,6 +26,9 @@ const userSchema = new Schema({
     type: String,
     default: "CUSTOMER",
   },
+  refreshToken: {
+    type: String,
+  },
 });
 
 userSchema.pre("save", async function (next) {
@@ -40,7 +43,7 @@ userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.generateAccessToken = async function (id) {
+userSchema.methods.generateAccessToken = async function () {
   return jwt.sign(
     {
       _id: this._id,
@@ -55,13 +58,10 @@ userSchema.methods.generateAccessToken = async function (id) {
   );
 };
 
-userSchema.methods.generateRefreshToken = async function (id) {
+userSchema.methods.generateRefreshToken = async function () {
   return jwt.sign(
     {
       _id: this._id,
-      email: this.email,
-      username: this.username,
-      role: this.role,
     },
     process.env.REFRESSH_TOKEN_SECRET,
     {
