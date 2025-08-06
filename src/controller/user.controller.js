@@ -101,4 +101,6 @@ const logOutUser = async (req, res) => {
     .json(new ApiResponse(200, [], "user logged out successfull"));
 };
 
+
+
 export { registerUser, loginUser, logOutUser };

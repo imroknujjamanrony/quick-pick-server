@@ -16,8 +16,9 @@ app.use(express.json());
 
 //import route
 import userRouter from "./routes/user.router.js";
-
+import productRouter from "./routes/product.route.js";
 //route declaration
 app.use("/api/v1/user", userRouter);
+app.use("/api/v1/product", productRouter);
 
 export { app };
