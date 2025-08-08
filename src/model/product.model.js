@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 
 const productSchema = new Schema(
   {
@@ -37,6 +37,10 @@ const productSchema = new Schema(
       type: Number,
       required: true,
     },
+    owner : {
+      type : Schema.Types.ObjectId,
+      ref : "User"
+    }
   },
   { timestamps: true }
 );
