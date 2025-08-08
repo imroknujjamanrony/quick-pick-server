@@ -13,10 +13,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const uri2 = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-const uri =
-  "mongodb+srv://carDoctor:djmD2MEoD0G0UyTG@cluster0.b3shiyx.mongodb.net/quick_client_?retryWrites=true&w=majority&appName=Cluster0";
+
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -92,13 +91,22 @@ app.post("/products", async (req, res) => {
   }
 });
 
+//get all products
+app.get("/products", async (req, res) => {
+  const result = await productDb.find().toArray();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result, "all products fatched"));
+});
+
 //get single product
 app.get("/product/:id", async (req, res) => {
   const { id } = req.params;
-  console.log(id)
+  console.log(id);
   try {
     const product = await productDb.findOne({ _id: new ObjectId(id) });
-    console.log(product)
+    console.log(product);
     return res
       .status(200)
       .json(new ApiResponse(200, product, "single product fetched"));
@@ -109,26 +117,24 @@ app.get("/product/:id", async (req, res) => {
     );
   }
 });
-
 
 //delete product
 app.delete("/product/:id", async (req, res) => {
   const { id } = req.params;
-  console.log(id)
+  console.log(id);
   try {
     const product = await productDb.findOneAndDelete({ _id: new ObjectId(id) });
-    console.log(product)
+    console.log(product);
     return res
       .status(200)
-      .json(new ApiResponse(200, product, "single product fetched"));
+      .json(new ApiResponse(200, product, "product deleted"));
   } catch (error) {
     throw new ApiError(
       500,
-      "internal server problem while fatching single product"
+      "internal server problem while fatching deleting product"
     );
   }
 });
-
 
 
 app.listen(port, () => {
