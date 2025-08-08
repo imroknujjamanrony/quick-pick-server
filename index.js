@@ -21,13 +21,17 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
-// const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-
 const uri =
-  "mongodb+srv://carDoctor:djmD2MEoD0G0UyTG@cluster0.b3shiyx.mongodb.net/quick_client_?retryWrites=true&w=majority&appName=Cluster0";
+  process.env.MONGO_URI ||
+  `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -65,8 +69,7 @@ async function run() {
 }
 run().catch(console.dir);
 
-//dbv collection
-
+//db collection
 const database = client.db("quick_client");
 const productDb = database.collection("products");
 
@@ -81,6 +84,7 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
     title,
     sku,
     description,
+    category,
     price,
     quantity,
     isOrganic,
@@ -103,8 +107,9 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
       title,
       sku,
       description,
-      price,
-      quantity,
+      category,
+      price: parseFloat(price),
+      quantity: parseFloat(quantity),
       images: uploadedImages,
       isOrganic,
       seller,
@@ -127,50 +132,70 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
 //get all products && filter products
 app.get("/products", async (req, res) => {
   const {
-    category,
+    category = "",
     minPrice,
     maxPrice,
-    search,
+    searchValue,
     isOrganic,
     page = 1,
-    limit = 10,
+    limit = 100,
   } = req.query;
 
-  const query = {};
+  let query = {};
 
   if (category) query.category = category;
-  if (isOrganic) query.isOrganic = isOrganic === true;
 
+  if (typeof isOrganic !== "undefined") {
+    query.isOrganic = isOrganic === "true";
+  }
   if (minPrice || maxPrice) {
+    query.price = {};
     if (minPrice) query.price.$gte = parseFloat(minPrice);
     if (maxPrice) query.price.$lte = parseFloat(maxPrice);
   }
 
-  if (search) {
-    query.$or = [{ productname: { $regex: search, $options: "i" } }];
+  if (searchValue) {
+    query.$or = [
+      {
+        productname: { $regex: `.*${searchValue}.*`, $options: "i" },
+      },
+    ];
   }
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const pageNum = parseInt(page);
+  const limitNum = parseInt(limit);
+  const skip = (pageNum - 1) * limitNum;
 
-  const products = await productDb
-    .find(query)
-    .skip(skip)
-    .limit(parseInt(limit))
-    .toArray();
-  const total = await productDb.countDocuments(query);
+  try {
+    const products = await productDb
+      .find(query)
+      .skip(skip)
+      .limit(limitNum)
+      .toArray();
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        total,
-        currentcPage: page,
-        totalPages: Math.ceil(total / limit),
-        products,
-      },
-      "product fetched successfully"
-    )
-  );
+    console.log(query);
+    // console.log(products)
+
+    const total = await productDb.countDocuments(query);
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          total,
+          currentPage: pageNum,
+          totalPages: Math.ceil(total / limitNum),
+          products,
+        },
+        "Products fetched successfully"
+      )
+    );
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal Server Error"));
+  }
 });
 
 //get single product
