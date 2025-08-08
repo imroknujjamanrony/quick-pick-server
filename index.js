@@ -5,17 +5,29 @@ const port = process.env.PORT || 5000;
 import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
 import { ApiResponse } from "./utils/ApiResponse.js";
 import { ApiError } from "./utils/ApiError.js";
+import multer from "multer";
+import { uploadOnCloudinary } from "./utils/cloudninary.js";
 
 dotenv.config();
 
 const app = express();
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./public/temp");
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname);
+  },
+});
 
+const upload = multer({ storage });
 app.use(cors());
 app.use(express.json());
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+// const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-
+const uri =
+  "mongodb+srv://carDoctor:djmD2MEoD0G0UyTG@cluster0.b3shiyx.mongodb.net/quick_client_?retryWrites=true&w=majority&appName=Cluster0";
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -32,23 +44,20 @@ async function run() {
     await client.connect();
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
 
     //blogs related APIs
-    const jinStoreBlogsCollection = client.db('Jinstore').collection('jinStoreBlogsCollection')
+    const jinStoreBlogsCollection = client
+      .db("Jinstore")
+      .collection("jinStoreBlogsCollection");
 
-    app.get('/jinStoreBlogsCollection', async(req, res)=>{
-      const cursor = jinStoreBlogsCollection.find()
+    app.get("/jinStoreBlogsCollection", async (req, res) => {
+      const cursor = jinStoreBlogsCollection.find();
       const result = await cursor.toArray();
-      res.send(result)
-
-    })
-
-
-
-
-
+      res.send(result);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -66,7 +75,7 @@ app.get("/", (req, res) => {
 });
 
 //post products
-app.post("/products", async (req, res) => {
+app.post("/products", upload.array("image", 5), async (req, res) => {
   const {
     productname,
     title,
@@ -74,12 +83,21 @@ app.post("/products", async (req, res) => {
     description,
     price,
     quantity,
-    image,
     isOrganic,
     seller,
   } = req.body;
 
+  const imageFiles = req?.files;
+
   try {
+    const uploadedImages = [];
+
+    for (const file of imageFiles) {
+      const uploadedUrl = await uploadOnCloudinary(file.path);
+      if (uploadedUrl) {
+        uploadedImages.push(uploadedUrl);
+      }
+    }
     const product = {
       productname,
       title,
@@ -87,10 +105,11 @@ app.post("/products", async (req, res) => {
       description,
       price,
       quantity,
-      images: [image],
+      images: uploadedImages,
       isOrganic,
       seller,
     };
+
     const result = await productDb.insertOne(product);
     res
       .status(201)
@@ -105,13 +124,53 @@ app.post("/products", async (req, res) => {
   }
 });
 
-//get all products
+//get all products && filter products
 app.get("/products", async (req, res) => {
-  const result = await productDb.find().toArray();
+  const {
+    category,
+    minPrice,
+    maxPrice,
+    search,
+    isOrganic,
+    page = 1,
+    limit = 10,
+  } = req.query;
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, result, "all products fatched"));
+  const query = {};
+
+  if (category) query.category = category;
+  if (isOrganic) query.isOrganic = isOrganic === true;
+
+  if (minPrice || maxPrice) {
+    if (minPrice) query.price.$gte = parseFloat(minPrice);
+    if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+  }
+
+  if (search) {
+    query.$or = [{ productname: { $regex: search, $options: "i" } }];
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const products = await productDb
+    .find(query)
+    .skip(skip)
+    .limit(parseInt(limit))
+    .toArray();
+  const total = await productDb.countDocuments(query);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        total,
+        currentcPage: page,
+        totalPages: Math.ceil(total / limit),
+        products,
+      },
+      "product fetched successfully"
+    )
+  );
 });
 
 //get single product
@@ -149,7 +208,6 @@ app.delete("/product/:id", async (req, res) => {
     );
   }
 });
-
 
 app.listen(port, () => {
   console.log(`${port}`);
