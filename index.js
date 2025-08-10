@@ -1,16 +1,37 @@
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+const port = process.env.PORT || 5000;
+import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import { ApiResponse } from "./utils/ApiResponse.js";
+import { ApiError } from "./utils/ApiError.js";
+import multer from "multer";
+import { uploadOnCloudinary } from "./utils/cloudninary.js";
 
-const express = require("express");
-const cors = require('cors')
-const app = express()
-require('dotenv').config()
-const port = process.env.PORT || 5000
-const { MongoClient, ServerApiVersion } = require('mongodb');
-app.use(cors())
-app.use(express.json())
+dotenv.config();
 
+const app = express();
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./public/temp");
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname);
+  },
+});
 
+const upload = multer({ storage });
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+app.use(express.json());
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const uri =
+  process.env.MONGO_URI ||
+  `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.zb1tr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -18,7 +39,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
@@ -27,14 +48,17 @@ async function run() {
     await client.connect();
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
 
     //blogs related APIs
-    const jinStoreBlogsCollection = client.db('Jinstore').collection('jinStoreBlogsCollection')
+    const jinStoreBlogsCollection = client
+      .db("Jinstore")
+      .collection("jinStoreBlogsCollection");
 
-    app.get('/jinStoreBlogsCollection', async(req, res)=>{
-      const cursor = jinStoreBlogsCollection.find()
+    app.get("/jinStoreBlogsCollection", async (req, res) => {
+      const cursor = jinStoreBlogsCollection.find();
       const result = await cursor.toArray();
       res.send(result)
     })
@@ -45,9 +69,8 @@ async function run() {
   })
 
 
-
-
-
+      // res.send(result);
+    // });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -55,11 +78,171 @@ async function run() {
 }
 run().catch(console.dir);
 
+//db collection
+const database = client.db("quick_client");
+const productDb = database.collection("products");
 
-app.get('/', (req,res)=>{
-    res.send('Hello Team Nexus')
-})
+app.get("/", (req, res) => {
+  res.send("Hello Team Nexus");
+});
 
-app.listen(port, ()=>{
-    console.log(`${port}`)
-})
+//post products
+app.post("/products", upload.array("image", 5), async (req, res) => {
+  const {
+    productname,
+    title,
+    sku,
+    description,
+    category,
+    price,
+    quantity,
+    isOrganic,
+    seller,
+  } = req.body;
+
+  const imageFiles = req?.files;
+
+  try {
+    const uploadedImages = [];
+
+    for (const file of imageFiles) {
+      const uploadedUrl = await uploadOnCloudinary(file.path);
+      if (uploadedUrl) {
+        uploadedImages.push(uploadedUrl);
+      }
+    }
+    const product = {
+      productname,
+      title,
+      sku,
+      description,
+      category,
+      price: parseFloat(price),
+      quantity: parseFloat(quantity),
+      images: uploadedImages,
+      isOrganic,
+      seller,
+    };
+
+    const result = await productDb.insertOne(product);
+    res
+      .status(201)
+      .json(new ApiResponse(200, result, "product posted successfully"));
+  } catch (error) {
+    console.error("Error adding product:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to add product",
+      error: error.message,
+    });
+  }
+});
+
+//get all products && filter products
+app.get("/products", async (req, res) => {
+  const {
+    category = "",
+    minPrice,
+    maxPrice,
+    searchValue,
+    isOrganic,
+    page = 1,
+    limit = 100,
+  } = req.query;
+
+  let query = {};
+
+  if (category) query.category = category;
+
+  if (typeof isOrganic !== "undefined") {
+    query.isOrganic = isOrganic === "true";
+  }
+  if (minPrice || maxPrice) {
+    query.price = {};
+    if (minPrice) query.price.$gte = parseFloat(minPrice);
+    if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+  }
+
+  if (searchValue) {
+    query.$or = [
+      {
+        productname: { $regex: `.*${searchValue}.*`, $options: "i" },
+      },
+    ];
+  }
+
+  const pageNum = parseInt(page);
+  const limitNum = parseInt(limit);
+  const skip = (pageNum - 1) * limitNum;
+
+  try {
+    const products = await productDb
+      .find(query)
+      .skip(skip)
+      .limit(limitNum)
+      .toArray();
+
+    console.log(query);
+    // console.log(products)
+
+    const total = await productDb.countDocuments(query);
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          total,
+          currentPage: pageNum,
+          totalPages: Math.ceil(total / limitNum),
+          products,
+        },
+        "Products fetched successfully"
+      )
+    );
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal Server Error"));
+  }
+});
+
+//get single product
+app.get("/product/:id", async (req, res) => {
+  const { id } = req.params;
+  console.log(id);
+  try {
+    const product = await productDb.findOne({ _id: new ObjectId(id) });
+    console.log(product);
+    return res
+      .status(200)
+      .json(new ApiResponse(200, product, "single product fetched"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "internal server problem while fatching single product"
+    );
+  }
+});
+
+//delete product
+app.delete("/product/:id", async (req, res) => {
+  const { id } = req.params;
+  console.log(id);
+  try {
+    const product = await productDb.findOneAndDelete({ _id: new ObjectId(id) });
+    console.log(product);
+    return res
+      .status(200)
+      .json(new ApiResponse(200, product, "product deleted"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "internal server problem while fatching deleting product"
+    );
+  }
+});
+
+app.listen(port, () => {
+  console.log(`${port}`);
+});
