@@ -37,8 +37,12 @@ async function run() {
       const cursor = jinStoreBlogsCollection.find()
       const result = await cursor.toArray();
       res.send(result)
-
     })
+
+  app.get('/blogsCollectionCount', async(req, res)=>{
+    const count = await jinStoreBlogsCollection.estimatedDocumentCount()
+    res.send({count})
+  })
 
 
 
