@@ -60,8 +60,17 @@ async function run() {
     app.get("/jinStoreBlogsCollection", async (req, res) => {
       const cursor = jinStoreBlogsCollection.find();
       const result = await cursor.toArray();
-      res.send(result);
-    });
+      res.send(result)
+    })
+
+  app.get('/blogsCollectionCount', async(req, res)=>{
+    const count = await jinStoreBlogsCollection.estimatedDocumentCount()
+    res.send({count})
+  })
+
+
+      // res.send(result);
+    // });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
