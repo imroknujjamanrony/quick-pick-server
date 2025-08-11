@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 const port = process.env.PORT || 5000;
-import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import { MongoClient, ObjectId, ServerApiVersion, Timestamp } from "mongodb";
 import { ApiResponse } from "./utils/ApiResponse.js";
 import { ApiError } from "./utils/ApiError.js";
 import multer from "multer";
@@ -91,7 +91,13 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
     seller,
   } = req.body;
 
-  const imageFiles = req?.files;
+  console.log(productname)
+
+  const imageFiles = req?.files || [];
+
+  if (!productname || !price || !quantity || !seller) {
+    return res.status(400).json({ success: false, message: "Missing required fields" });
+  }
 
   try {
     const uploadedImages = [];
@@ -102,6 +108,7 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
         uploadedImages.push(uploadedUrl);
       }
     }
+
     const product = {
       productname,
       title,
@@ -111,14 +118,13 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
       price: parseFloat(price),
       quantity: parseFloat(quantity),
       images: uploadedImages,
-      isOrganic,
+      isOrganic: isOrganic === "true",
       seller,
+      createdAt: new Date(),
     };
 
     const result = await productDb.insertOne(product);
-    res
-      .status(201)
-      .json(new ApiResponse(200, result, "product posted successfully"));
+    res.status(201).json(new ApiResponse(201, result, "Product posted successfully"));
   } catch (error) {
     console.error("Error adding product:", error);
     res.status(500).json({
@@ -129,6 +135,7 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
   }
 });
 
+
 //get all products && filter products
 app.get("/products", async (req, res) => {
   const {
@@ -138,7 +145,7 @@ app.get("/products", async (req, res) => {
     searchValue,
     isOrganic,
     page = 1,
-    limit = 100,
+    limit = 10,
   } = req.query;
 
   let query = {};
@@ -157,7 +164,7 @@ app.get("/products", async (req, res) => {
   if (searchValue) {
     query.$or = [
       {
-        productname: { $regex: `.*${searchValue}.*`, $options: "i" },
+        productname: { $regex: `${searchValue}`, $options: "i" },
       },
     ];
   }
@@ -200,6 +207,7 @@ app.get("/products", async (req, res) => {
 
 //get single product
 app.get("/product/:id", async (req, res) => {
+  console.log("router hited")
   const { id } = req.params;
   console.log(id);
   try {
