@@ -23,7 +23,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://quickpick-49e4b.web.app/",
     credentials: true,
   })
 );
