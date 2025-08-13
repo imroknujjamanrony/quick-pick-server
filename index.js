@@ -23,7 +23,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: 'https://quickpick-49e4b.web.app/ ',
     credentials: true,
   })
 );
@@ -60,6 +60,13 @@ async function run() {
     app.get("/jinStoreBlogsCollection", async (req, res) => {
       const cursor = jinStoreBlogsCollection.find();
       const result = await cursor.toArray();
+      res.send(result)
+    })
+
+    app.get("/jinStoreBlogsCollection/:id", async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id)}
+      const result = await jinStoreBlogsCollection.findOne(query)
       res.send(result)
     })
 
