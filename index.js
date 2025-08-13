@@ -60,16 +60,15 @@ async function run() {
     app.get("/jinStoreBlogsCollection", async (req, res) => {
       const cursor = jinStoreBlogsCollection.find();
       const result = await cursor.toArray();
-      res.send(result)
-    })
+      res.send(result);
+    });
 
-  app.get('/blogsCollectionCount', async(req, res)=>{
-    const count = await jinStoreBlogsCollection.estimatedDocumentCount()
-    res.send({count})
-  })
+    app.get("/blogsCollectionCount", async (req, res) => {
+      const count = await jinStoreBlogsCollection.estimatedDocumentCount();
+      res.send({ count });
+    });
 
-
-      // res.send(result);
+    // res.send(result);
     // });
   } finally {
     // Ensures that the client will close when you finish/error
@@ -86,8 +85,8 @@ app.get("/", (req, res) => {
   res.send("Hello Team Nexus");
 });
 
-//post products
-app.post("/products", upload.array("image", 5), async (req, res) => {
+// add/post products
+app.post("/products", upload.array("images", 5), async (req, res) => {
   const {
     productname,
     title,
@@ -100,12 +99,15 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
     seller,
   } = req.body;
 
-  console.log(productname)
+  console.log(productname);
 
   const imageFiles = req?.files || [];
+  console.log(imageFiles);
 
   if (!productname || !price || !quantity || !seller) {
-    return res.status(400).json({ success: false, message: "Missing required fields" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing required fields" });
   }
 
   try {
@@ -127,23 +129,20 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
       price: parseFloat(price),
       quantity: parseFloat(quantity),
       images: uploadedImages,
-      isOrganic: isOrganic === "true",
+      isOrganic,
       seller,
       createdAt: new Date(),
     };
 
     const result = await productDb.insertOne(product);
-    res.status(201).json(new ApiResponse(201, result, "Product posted successfully"));
+    res
+      .status(201)
+      .json(new ApiResponse(201, result, "Product posted successfully"));
   } catch (error) {
     console.error("Error adding product:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to add product",
-      error: error.message,
-    });
+    res.status(500).json(new ApiError(500, "filed to add product", error));
   }
 });
-
 
 //get all products && filter products
 app.get("/products", async (req, res) => {
@@ -216,12 +215,12 @@ app.get("/products", async (req, res) => {
 
 //get single product
 app.get("/product/:id", async (req, res) => {
-  console.log("router hited")
+  console.log("router hited");
   const { id } = req.params;
   console.log(id);
   try {
     const product = await productDb.findOne({ _id: new ObjectId(id) });
-    console.log(product);
+    // console.log("after 2nd update", product);
     return res
       .status(200)
       .json(new ApiResponse(200, product, "single product fetched"));
@@ -248,6 +247,118 @@ app.delete("/product/:id", async (req, res) => {
       500,
       "internal server problem while fatching deleting product"
     );
+  }
+});
+
+//update product
+app.put("/product/:id", upload.array("image", 5), async (req, res) => {
+  const { id } = req.params;
+  const {
+    productname,
+    title,
+    sku,
+    description,
+    category,
+    price,
+    quantity,
+    isOrganic,
+    seller,
+  } = req.body;
+
+  // const imageFiles = req?.files || [];
+  const porduct = await productDb.findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        productname,
+        title,
+        sku,
+        description,
+        category,
+        price: parseFloat(price),
+        quantity: parseFloat(quantity),
+        isOrganic: isOrganic === true,
+        seller,
+        updatedAt: new Date(),
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  if (!porduct) {
+    return res.status(404).json(new ApiError(404, "Product not found"));
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, porduct, "Product updated successfully"));
+});
+
+//update product image
+app.patch("/productImage/:id", upload.array("image", 5), async (req, res) => {
+  const { id } = req.params;
+  console.log(id)
+  const imageFiles = req?.files || [];
+  console.log(imageFiles)
+
+  try {
+    const product = await productDb.findOne({ _id: new ObjectId(id) });
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const uploadedImages = [];
+    for (const file of imageFiles) {
+      const uploadedUrl = await uploadOnCloudinary(file.path);
+      if (uploadedUrl) {
+        uploadedImages.push(uploadedUrl);
+      }
+    }
+
+    await productDb.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { images: uploadedImages } }
+    );
+
+    const updatedProduct = await productDb.findOne({ _id: new ObjectId(id) });
+
+    return res.status(200).json({
+      status: 200,
+      data: updatedProduct,
+      message: "Product images updated",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//delete product image
+app.patch("/productImage/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const product = await productDb.findOne({ _id: new ObjectId(id) });
+    if (!product) {
+      return res.status(404).json(new ApiError(404, "Product not found"));
+    }
+
+    await productDb.updateOne(
+      { _id: new ObjectId(id) },
+      { $unset: { images: "" } }
+    );
+
+    const updatedProduct = await productDb.findOne({ _id: new ObjectId(id) });
+    // console.log("after update : ", updatedProduct);
+
+    return res.status(200).json({
+      status: 200,
+      data: updatedProduct,
+      message: "Product image deleted",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
