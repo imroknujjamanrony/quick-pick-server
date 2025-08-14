@@ -19,14 +19,20 @@ const storage = multer.diskStorage({
     cb(null, file.originalname);
   },
 });
-
 const upload = multer({ storage });
+
+const allowedOrigins = [
+  'https://quickpick-49e4b.web.app',
+  'http://localhost:5173'
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: 'https://quickpick-49e4b.web.app/ ',
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 const uri =
@@ -60,13 +66,21 @@ async function run() {
     app.get("/jinStoreBlogsCollection", async (req, res) => {
       const cursor = jinStoreBlogsCollection.find();
       const result = await cursor.toArray();
-      res.send(result);
-    });
+      res.send(result)
+    })
 
-    app.get("/blogsCollectionCount", async (req, res) => {
-      const count = await jinStoreBlogsCollection.estimatedDocumentCount();
-      res.send({ count });
-    });
+    app.get("/jinStoreBlogsCollection/:id", async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id)}
+      const result = await jinStoreBlogsCollection.findOne(query)
+      res.send(result)
+    })
+
+  app.get('/blogsCollectionCount', async(req, res)=>{
+    const count = await jinStoreBlogsCollection.estimatedDocumentCount()
+    res.send({count})
+  })
+
 
     // res.send(result);
     // });
@@ -147,39 +161,42 @@ app.post("/products", upload.array("images", 5), async (req, res) => {
 
 //get all products && filter products
 app.get("/products", async (req, res) => {
+  const {
+    category = "",
+    minPrice,
+    maxPrice,
+    searchValue,
+    isOrganic,
+    page = 1,
+    limit = 100,
+  } = req.query;
+
+  let query = {};
+
+  if (category) query.category = category;
+
+  if (typeof isOrganic !== "undefined") {
+    query.isOrganic = isOrganic === "true";
+  }
+  if (minPrice || maxPrice) {
+    query.price = {};
+    if (minPrice) query.price.$gte = parseFloat(minPrice);
+    if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+  }
+
+  if (searchValue) {
+    query.$or = [
+      {
+        productname: { $regex: `.*${searchValue}.*`, $options: "i" },
+      },
+    ];
+  }
+
+  const pageNum = parseInt(page);
+  const limitNum = parseInt(limit);
+  const skip = (pageNum - 1) * limitNum;
+
   try {
-    let {
-      category,
-      minPrice,
-      maxPrice,
-      searchValue,
-      isOrganic,
-      page = 1,
-      limit = 10,
-    } = req.query;
-
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
-    const skip = (pageNum - 1) * limitNum;
-
-    const query = {};
-    if (searchValue) {
-      query.productname = { $regex: searchValue, $options: "i" };
-    }
-    if (category) {
-      query.category = { $regex: category };
-    }
-    if (typeof isOrganic !== "undefined") {
-      query.isOrganic = isOrganic === "true" || isOrganic === true;
-    }
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = parseFloat(minPrice);
-      if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-    }
-
-    console.log('category :',category)
-
     const products = await productDb
       .find(query)
       .skip(skip)
@@ -188,16 +205,18 @@ app.get("/products", async (req, res) => {
 
     const total = await productDb.countDocuments(query);
 
-    return res.status(200).json({
-      status: "success",
-      data: {
-        total,
-        currentPage: pageNum,
-        totalPages: Math.ceil(total / limitNum),
-        products,
-      },
-      message: "Products fetched successfully",
-    });
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          total,
+          currentPage: pageNum,
+          totalPages: Math.ceil(total / limitNum),
+          products,
+        },
+        "Products fetched successfully"
+      )
+    );
   } catch (error) {
     console.error("Error fetching products:", error);
     return res.status(500).json({
@@ -207,7 +226,6 @@ app.get("/products", async (req, res) => {
     });
   }
 });
-
 
 //get single product
 app.get("/product/:id", async (req, res) => {
