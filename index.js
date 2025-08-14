@@ -28,7 +28,7 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: 'https://quickpick-49e4b.web.app/ ',
+    origin: allowedOrigins,
     credentials: true,
   })
 );
