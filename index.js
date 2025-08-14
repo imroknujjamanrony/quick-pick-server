@@ -129,8 +129,9 @@ app.post("/products", upload.array("images", 5), async (req, res) => {
       price: parseFloat(price),
       quantity: parseFloat(quantity),
       images: uploadedImages,
-      isOrganic,
+      isOrganic: Boolean(isOrganic),
       seller,
+      isFeatured: false,
       createdAt: new Date(),
     };
 
@@ -146,72 +147,67 @@ app.post("/products", upload.array("images", 5), async (req, res) => {
 
 //get all products && filter products
 app.get("/products", async (req, res) => {
-  const {
-    category = "",
-    minPrice,
-    maxPrice,
-    searchValue,
-    isOrganic,
-    page = 1,
-    limit = 10,
-  } = req.query;
-
-  let query = {};
-
-  if (category) query.category = category;
-
-  if (typeof isOrganic !== "undefined") {
-    query.isOrganic = isOrganic === "true";
-  }
-  if (minPrice || maxPrice) {
-    query.price = {};
-    if (minPrice) query.price.$gte = parseFloat(minPrice);
-    if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-  }
-
-  if (searchValue) {
-    query.$or = [
-      {
-        productname: { $regex: `${searchValue}`, $options: "i" },
-      },
-    ];
-  }
-
-  const pageNum = parseInt(page);
-  const limitNum = parseInt(limit);
-  const skip = (pageNum - 1) * limitNum;
-
   try {
+    let {
+      category,
+      minPrice,
+      maxPrice,
+      searchValue,
+      isOrganic,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    const query = {};
+    if (searchValue) {
+      query.productname = { $regex: searchValue, $options: "i" };
+    }
+    if (category) {
+      query.category = { $regex: category };
+    }
+    if (typeof isOrganic !== "undefined") {
+      query.isOrganic = isOrganic === "true" || isOrganic === true;
+    }
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = parseFloat(minPrice);
+      if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+    }
+
+    console.log('category :',category)
+
     const products = await productDb
       .find(query)
       .skip(skip)
       .limit(limitNum)
       .toArray();
 
-    console.log(query);
-    // console.log(products)
-
     const total = await productDb.countDocuments(query);
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        {
-          total,
-          currentPage: pageNum,
-          totalPages: Math.ceil(total / limitNum),
-          products,
-        },
-        "Products fetched successfully"
-      )
-    );
+    return res.status(200).json({
+      status: "success",
+      data: {
+        total,
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        products,
+      },
+      message: "Products fetched successfully",
+    });
   } catch (error) {
     console.error("Error fetching products:", error);
-    return res
-      .status(500)
-      .json(new ApiResponse(500, null, "Internal Server Error"));
+    return res.status(500).json({
+      status: "error",
+      data: null,
+      message: "Internal Server Error",
+    });
   }
 });
+
 
 //get single product
 app.get("/product/:id", async (req, res) => {
@@ -265,6 +261,8 @@ app.put("/product/:id", upload.array("image", 5), async (req, res) => {
     seller,
   } = req.body;
 
+  console.log(isOrganic);
+
   // const imageFiles = req?.files || [];
   const porduct = await productDb.findOneAndUpdate(
     { _id: new ObjectId(id) },
@@ -277,7 +275,7 @@ app.put("/product/:id", upload.array("image", 5), async (req, res) => {
         category,
         price: parseFloat(price),
         quantity: parseFloat(quantity),
-        isOrganic: isOrganic === true,
+        isOrganic: Boolean(isOrganic),
         seller,
         updatedAt: new Date(),
       },
@@ -297,9 +295,9 @@ app.put("/product/:id", upload.array("image", 5), async (req, res) => {
 //update product image
 app.patch("/productImage/:id", upload.array("image", 5), async (req, res) => {
   const { id } = req.params;
-  console.log(id)
+  console.log(id);
   const imageFiles = req?.files || [];
-  console.log(imageFiles)
+  console.log(imageFiles);
 
   try {
     const product = await productDb.findOne({ _id: new ObjectId(id) });
@@ -359,6 +357,71 @@ app.patch("/productImage/:id", async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//add featured product
+app.patch(`/feature-product/:id`, async (req, res) => {
+  const { id } = req.params;
+  const { isFeatured } = req.body;
+
+  try {
+    const product = await productDb.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: { isFeatured: Boolean(isFeatured) } },
+      { returnDocument: "after" }
+    );
+
+    if (!product) {
+      return res.status(404).json(new ApiError(404, "Product not found"));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          product,
+          product.isFeatured
+            ? "✅ Product added to featured list"
+            : "❌ Product removed from featured list"
+        )
+      );
+  } catch (error) {
+    return res.status(500).json(new ApiError(500, error.message));
+  }
+});
+
+//add organic product
+app.patch(`/orgaanic-product/:id`, async (req, res) => {
+  const { id } = req.params;
+  const { isOrganic } = req.body;
+  console.log(id, isOrganic);
+
+  try {
+    const product = await productDb.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: { isOrganic: Boolean(isOrganic) } },
+      { returnDocument: "after" }
+    );
+
+    if (!product) {
+      return res.status(404).json(new ApiError(404, "Product not found"));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          product,
+          product.isOrganic
+            ? "✅ Product added to organic list"
+            : "❌ Product removed from organic list"
+        )
+      );
+  } catch (error) {
+    return res.status(500).json(new ApiError(500, error.message));
   }
 });
 
