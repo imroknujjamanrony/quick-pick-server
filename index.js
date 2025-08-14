@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 const port = process.env.PORT || 5000;
-import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import { MongoClient, ObjectId, ServerApiVersion, Timestamp } from "mongodb";
 import { ApiResponse } from "./utils/ApiResponse.js";
 import { ApiError } from "./utils/ApiError.js";
 import multer from "multer";
@@ -19,14 +19,20 @@ const storage = multer.diskStorage({
     cb(null, file.originalname);
   },
 });
-
 const upload = multer({ storage });
+
+const allowedOrigins = [
+  'https://quickpick-49e4b.web.app',
+  'http://localhost:5173'
+];
+
 app.use(
   cors({
-    origin: 'https://quickpick-49e4b.web.app/ ',
+    origin: allowedOrigins,
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 const uri =
@@ -76,7 +82,7 @@ async function run() {
   })
 
 
-      // res.send(result);
+    // res.send(result);
     // });
   } finally {
     // Ensures that the client will close when you finish/error
@@ -93,8 +99,8 @@ app.get("/", (req, res) => {
   res.send("Hello Team Nexus");
 });
 
-//post products
-app.post("/products", upload.array("image", 5), async (req, res) => {
+// add/post products
+app.post("/products", upload.array("images", 5), async (req, res) => {
   const {
     productname,
     title,
@@ -107,7 +113,16 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
     seller,
   } = req.body;
 
-  const imageFiles = req?.files;
+  console.log(productname);
+
+  const imageFiles = req?.files || [];
+  console.log(imageFiles);
+
+  if (!productname || !price || !quantity || !seller) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing required fields" });
+  }
 
   try {
     const uploadedImages = [];
@@ -118,6 +133,7 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
         uploadedImages.push(uploadedUrl);
       }
     }
+
     const product = {
       productname,
       title,
@@ -127,21 +143,19 @@ app.post("/products", upload.array("image", 5), async (req, res) => {
       price: parseFloat(price),
       quantity: parseFloat(quantity),
       images: uploadedImages,
-      isOrganic,
+      isOrganic: Boolean(isOrganic),
       seller,
+      isFeatured: false,
+      createdAt: new Date(),
     };
 
     const result = await productDb.insertOne(product);
     res
       .status(201)
-      .json(new ApiResponse(200, result, "product posted successfully"));
+      .json(new ApiResponse(201, result, "Product posted successfully"));
   } catch (error) {
     console.error("Error adding product:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to add product",
-      error: error.message,
-    });
+    res.status(500).json(new ApiError(500, "filed to add product", error));
   }
 });
 
@@ -189,9 +203,6 @@ app.get("/products", async (req, res) => {
       .limit(limitNum)
       .toArray();
 
-    console.log(query);
-    // console.log(products)
-
     const total = await productDb.countDocuments(query);
 
     return res.status(200).json(
@@ -208,19 +219,22 @@ app.get("/products", async (req, res) => {
     );
   } catch (error) {
     console.error("Error fetching products:", error);
-    return res
-      .status(500)
-      .json(new ApiResponse(500, null, "Internal Server Error"));
+    return res.status(500).json({
+      status: "error",
+      data: null,
+      message: "Internal Server Error",
+    });
   }
 });
 
 //get single product
 app.get("/product/:id", async (req, res) => {
+  console.log("router hited");
   const { id } = req.params;
   console.log(id);
   try {
     const product = await productDb.findOne({ _id: new ObjectId(id) });
-    console.log(product);
+    // console.log("after 2nd update", product);
     return res
       .status(200)
       .json(new ApiResponse(200, product, "single product fetched"));
@@ -247,6 +261,185 @@ app.delete("/product/:id", async (req, res) => {
       500,
       "internal server problem while fatching deleting product"
     );
+  }
+});
+
+//update product
+app.put("/product/:id", upload.array("image", 5), async (req, res) => {
+  const { id } = req.params;
+  const {
+    productname,
+    title,
+    sku,
+    description,
+    category,
+    price,
+    quantity,
+    isOrganic,
+    seller,
+  } = req.body;
+
+  console.log(isOrganic);
+
+  // const imageFiles = req?.files || [];
+  const porduct = await productDb.findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        productname,
+        title,
+        sku,
+        description,
+        category,
+        price: parseFloat(price),
+        quantity: parseFloat(quantity),
+        isOrganic: Boolean(isOrganic),
+        seller,
+        updatedAt: new Date(),
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  if (!porduct) {
+    return res.status(404).json(new ApiError(404, "Product not found"));
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, porduct, "Product updated successfully"));
+});
+
+//update product image
+app.patch("/productImage/:id", upload.array("image", 5), async (req, res) => {
+  const { id } = req.params;
+  console.log(id);
+  const imageFiles = req?.files || [];
+  console.log(imageFiles);
+
+  try {
+    const product = await productDb.findOne({ _id: new ObjectId(id) });
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const uploadedImages = [];
+    for (const file of imageFiles) {
+      const uploadedUrl = await uploadOnCloudinary(file.path);
+      if (uploadedUrl) {
+        uploadedImages.push(uploadedUrl);
+      }
+    }
+
+    await productDb.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { images: uploadedImages } }
+    );
+
+    const updatedProduct = await productDb.findOne({ _id: new ObjectId(id) });
+
+    return res.status(200).json({
+      status: 200,
+      data: updatedProduct,
+      message: "Product images updated",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//delete product image
+app.patch("/productImage/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const product = await productDb.findOne({ _id: new ObjectId(id) });
+    if (!product) {
+      return res.status(404).json(new ApiError(404, "Product not found"));
+    }
+
+    await productDb.updateOne(
+      { _id: new ObjectId(id) },
+      { $unset: { images: "" } }
+    );
+
+    const updatedProduct = await productDb.findOne({ _id: new ObjectId(id) });
+    // console.log("after update : ", updatedProduct);
+
+    return res.status(200).json({
+      status: 200,
+      data: updatedProduct,
+      message: "Product image deleted",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//add featured product
+app.patch(`/feature-product/:id`, async (req, res) => {
+  const { id } = req.params;
+  const { isFeatured } = req.body;
+
+  try {
+    const product = await productDb.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: { isFeatured: Boolean(isFeatured) } },
+      { returnDocument: "after" }
+    );
+
+    if (!product) {
+      return res.status(404).json(new ApiError(404, "Product not found"));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          product,
+          product.isFeatured
+            ? "✅ Product added to featured list"
+            : "❌ Product removed from featured list"
+        )
+      );
+  } catch (error) {
+    return res.status(500).json(new ApiError(500, error.message));
+  }
+});
+
+//add organic product
+app.patch(`/orgaanic-product/:id`, async (req, res) => {
+  const { id } = req.params;
+  const { isOrganic } = req.body;
+  console.log(id, isOrganic);
+
+  try {
+    const product = await productDb.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: { isOrganic: Boolean(isOrganic) } },
+      { returnDocument: "after" }
+    );
+
+    if (!product) {
+      return res.status(404).json(new ApiError(404, "Product not found"));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          product,
+          product.isOrganic
+            ? "✅ Product added to organic list"
+            : "❌ Product removed from organic list"
+        )
+      );
+  } catch (error) {
+    return res.status(500).json(new ApiError(500, error.message));
   }
 });
 
