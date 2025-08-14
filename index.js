@@ -94,6 +94,7 @@ run().catch(console.dir);
 //db collection
 const database = client.db("quick_client");
 const productDb = database.collection("products");
+const reviewDb = database.collection("reviews");
 
 app.get("/", (req, res) => {
   res.send("Hello Team Nexus");
@@ -442,6 +443,62 @@ app.patch(`/orgaanic-product/:id`, async (req, res) => {
     return res.status(500).json(new ApiError(500, error.message));
   }
 });
+
+
+
+//post review
+app.post("/review", async(req,res)=>{
+  const { productId, userId, username, rating=0, comment } = req.body;
+  console.log(productId)
+
+  if (!productId || !userId ) {
+    return res.status(400).json(new ApiError(400, "Missing required fields"));
+  }
+
+  try {
+    const review = {
+      productId,
+      userId,
+      username,
+      rating: parseFloat(rating),
+      comment,
+      createdAt: new Date(),
+    };
+
+    const result = await reviewDb.insertOne(review);
+    console.log(result)
+
+   return res.status(201).json(new ApiResponse(201, result, "Review posted successfully"));
+  } catch (error) {
+    console.error("Error adding review:", error);
+    res.status(500).json(new ApiError(500, "Failed to add review", error));
+  }
+})
+
+
+app.get("/reviews", async (req, res) => {
+  const { productId } = req.query;
+  console.log(productId);
+
+  try {
+    const review = await reviewDb.find({ productId }).toArray();
+
+    if (!review.length) {
+      return res
+        .status(404)
+        .json(new ApiError(404, "No reviews found for this product"));
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, review, "Reviews fetched successfully"));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json(new ApiError(500, "Internal Server Error"));
+  }
+});
+
+
 
 app.listen(port, () => {
   console.log(`${port}`);
