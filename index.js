@@ -22,8 +22,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 const allowedOrigins = [
-  'https://quickpick-49e4b.web.app',
-  'http://localhost:5173'
+  "https://quickpick-49e4b.web.app",
+  "http://localhost:5173",
 ];
 
 app.use(
@@ -66,21 +66,20 @@ async function run() {
     app.get("/jinStoreBlogsCollection", async (req, res) => {
       const cursor = jinStoreBlogsCollection.find();
       const result = await cursor.toArray();
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     app.get("/jinStoreBlogsCollection/:id", async (req, res) => {
-      const id = req.params.id
-      const query = { _id: new ObjectId(id)}
-      const result = await jinStoreBlogsCollection.findOne(query)
-      res.send(result)
-    })
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await jinStoreBlogsCollection.findOne(query);
+      res.send(result);
+    });
 
-  app.get('/blogsCollectionCount', async(req, res)=>{
-    const count = await jinStoreBlogsCollection.estimatedDocumentCount()
-    res.send({count})
-  })
-
+    app.get("/blogsCollectionCount", async (req, res) => {
+      const count = await jinStoreBlogsCollection.estimatedDocumentCount();
+      res.send({ count });
+    });
 
     // res.send(result);
     // });
@@ -444,14 +443,12 @@ app.patch(`/orgaanic-product/:id`, async (req, res) => {
   }
 });
 
-
-
 //post review
-app.post("/review", async(req,res)=>{
-  const { productId, userId, username, rating=0, comment } = req.body;
-  console.log(productId)
+app.post("/review", async (req, res) => {
+  const { productId, userId, username, rating = 0, comment } = req.body;
+  console.log(productId);
 
-  if (!productId || !userId ) {
+  if (!productId || !userId) {
     return res.status(400).json(new ApiError(400, "Missing required fields"));
   }
 
@@ -466,16 +463,18 @@ app.post("/review", async(req,res)=>{
     };
 
     const result = await reviewDb.insertOne(review);
-    console.log(result)
+    console.log(result);
 
-   return res.status(201).json(new ApiResponse(201, result, "Review posted successfully"));
+    return res
+      .status(201)
+      .json(new ApiResponse(201, result, "Review posted successfully"));
   } catch (error) {
     console.error("Error adding review:", error);
     res.status(500).json(new ApiError(500, "Failed to add review", error));
   }
-})
+});
 
-
+//get reviews by productId
 app.get("/reviews", async (req, res) => {
   const { productId } = req.query;
   console.log(productId);
@@ -498,7 +497,43 @@ app.get("/reviews", async (req, res) => {
   }
 });
 
+app.patch("/test-agree", async (req, res) => {
+  const db = client.db("practice_agreegation");
 
+  try {
+    const reviewDB = db.collection("reviews");
+    const productDB = db.collection("products");
+    const userDB = db.collection("users");
+
+    const reviews = await reviewDB.updateMany([
+      {},
+      {
+        $set: { userId: { $toObjectId: "$userId" } },
+      },
+    ]);
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          reviews,
+        },
+        "Aggregation data fetched successfully"
+      )
+    );
+  } catch (error) {
+    console.error("Aggregation Error:", error);
+    res
+      .status(500)
+      .json(
+        new ApiError(
+          500,
+          "Failed to fetch aggregation data",
+          process.env.NODE_ENV === "development" ? error : undefined
+        )
+      );
+  }
+});
 
 app.listen(port, () => {
   console.log(`${port}`);
