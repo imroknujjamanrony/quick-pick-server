@@ -28,6 +28,7 @@ const allowedOrigins = [
 
 app.use(
   cors({
+    origin: ['https://quickpick-49e4b.web.app/', 'http://localhost:5173'],
     origin: allowedOrigins,
     credentials: true,
   })
@@ -49,6 +50,7 @@ const client = new MongoClient(uri, {
 });
 
 async function run() {
+  
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
