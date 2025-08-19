@@ -57,7 +57,7 @@ async function run() {
     await client.connect();
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log(
+    //clg(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
 const usersCollection = client.db('Jinstore').collection('users')
@@ -79,7 +79,7 @@ const usersCollection = client.db('Jinstore').collection('users')
     // middleware
 
     const verifyToken = (req, res, next) => {
-      console.log('Inside Verify Token', req.headers.authorization);
+      //clg('Inside Verify Token', req.headers.authorization);
       if (!req.headers.authorization) {
 
         return res.status(401).send({ message: 'Forbidden Access' })
@@ -181,10 +181,10 @@ app.post("/products", upload.array("images", 5), async (req, res) => {
     seller,
   } = req.body;
 
-  console.log(productname);
+  //clg(productname);
 
   const imageFiles = req?.files || [];
-  console.log(imageFiles);
+  //clg(imageFiles);
 
   if (!productname || !price || !quantity || !seller) {
     return res
@@ -297,12 +297,12 @@ app.get("/products", async (req, res) => {
 
 //get single product
 app.get("/product/:id", async (req, res) => {
-  console.log("router hited");
+  //clg("router hited");
   const { id } = req.params;
-  console.log(id);
+  //clg(id);
   try {
     const product = await productDb.findOne({ _id: new ObjectId(id) });
-    // console.log("after 2nd update", product);
+    // //clg("after 2nd update", product);
     return res
       .status(200)
       .json(new ApiResponse(200, product, "single product fetched"));
@@ -317,10 +317,10 @@ app.get("/product/:id", async (req, res) => {
 //delete product
 app.delete("/product/:id", async (req, res) => {
   const { id } = req.params;
-  console.log(id);
+  //clg(id);
   try {
     const product = await productDb.findOneAndDelete({ _id: new ObjectId(id) });
-    console.log(product);
+    //clg(product);
     return res
       .status(200)
       .json(new ApiResponse(200, product, "product deleted"));
@@ -347,7 +347,7 @@ app.put("/product/:id", upload.array("image", 5), async (req, res) => {
     seller,
   } = req.body;
 
-  console.log(isOrganic);
+  //clg(isOrganic);
 
   // const imageFiles = req?.files || [];
   const porduct = await productDb.findOneAndUpdate(
@@ -381,9 +381,9 @@ app.put("/product/:id", upload.array("image", 5), async (req, res) => {
 //update product image
 app.patch("/productImage/:id", upload.array("image", 5), async (req, res) => {
   const { id } = req.params;
-  console.log(id);
+  //clg(id);
   const imageFiles = req?.files || [];
-  console.log(imageFiles);
+  //clg(imageFiles);
 
   try {
     const product = await productDb.findOne({ _id: new ObjectId(id) });
@@ -433,7 +433,7 @@ app.patch("/productImage/:id", async (req, res) => {
     );
 
     const updatedProduct = await productDb.findOne({ _id: new ObjectId(id) });
-    // console.log("after update : ", updatedProduct);
+    // //clg("after update : ", updatedProduct);
 
     return res.status(200).json({
       status: 200,
@@ -482,7 +482,7 @@ app.patch(/feature-product/:id, async (req, res) => {
 app.patch(/orgaanic-product/:id, async (req, res) => {
   const { id } = req.params;
   const { isOrganic } = req.body;
-  console.log(id, isOrganic);
+  //clg(id, isOrganic);
 
   try {
     const product = await productDb.findOneAndUpdate(
@@ -512,5 +512,5 @@ app.patch(/orgaanic-product/:id, async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(${port});
+  //clg(${port});
 });

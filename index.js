@@ -101,7 +101,6 @@ const productDb = database.collection("products");
 const reviewDb = database.collection("reviews");
 const usersCollection = database.collection("users");
 
-
 app.get("/", (req, res) => {
   res.send("Hello Team Nexus");
 });
@@ -110,19 +109,20 @@ app.get("/", (req, res) => {
 const verifyJWT = async (req, res, next) => {
   try {
     const token = req?.cookies?.accessToken;
+    console.log('from verify jwt',token);
     if (!token) {
       throw new ApiError(401, "Unauthorized access");
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    console.log(decoded?.email, decoded?._id);
+    //clg(decoded?.email, decoded?._id);
 
     const user = await usersCollection.findOne({
       $or: [{ _id: new ObjectId(decoded?._id) }, { email: decoded?.email }],
     });
 
-    console.log(user);
+    //clg(user);
 
     if (!user) {
       throw new ApiError(401, "Invalid access token");
@@ -141,7 +141,7 @@ const verifyAdmin = async (req, res, next) => {
     const user = req?.user;
     const isAdmin = user?.role == "ADMIN";
 
-    if (!isAdmin) {
+    if (!isAdmin == 'ADMIN') {
       return res.status(401).json(new ApiError(401, "Invalid access"));
     }
 
@@ -155,7 +155,7 @@ const verifyAdmin = async (req, res, next) => {
 app.post("/register", async (req, res, next) => {
   try {
     const { name, email } = req.body;
-    console.log(email);
+    //clg(email);
 
     const userData = {
       name,
@@ -171,7 +171,7 @@ app.post("/register", async (req, res, next) => {
 
     const options = {
       httpOnly: true,
-      secure: true,
+      secure: false,
     };
 
     return res
@@ -187,14 +187,14 @@ app.post("/register", async (req, res, next) => {
 app.post("/login", async (req, res, next) => {
   try {
     const { email } = req.body;
-    console.log(email);
+    //clg(email);
 
     const updatedUser = await usersCollection.findOneAndUpdate(
       { email },
       { $set: { lastLoggedIn: new Date() } },
       { returnDocument: "after" }
     );
-    // console.log(updatedUser)
+    // //clg(updatedUser)
     if (!updatedUser?._id) {
       throw new ApiError(404, "User not found");
     }
@@ -205,7 +205,7 @@ app.post("/login", async (req, res, next) => {
 
     const options = {
       httpOnly: true,
-      secure: true,
+      secure: false,
     };
 
     return res
@@ -235,8 +235,12 @@ app.post("/logout", verifyJWT, async (req, res, next) => {
 });
 
 // add/post products
-app.post("/products",upload.array("images", 5),verifyJWT,verifyAdmin,async (req, res) => {
-
+app.post(
+  "/products",
+  upload.array("images", 5),
+  verifyJWT,
+  verifyAdmin,
+  async (req, res) => {
     const {
       productname,
       title,
@@ -249,9 +253,9 @@ app.post("/products",upload.array("images", 5),verifyJWT,verifyAdmin,async (req,
     } = req.body;
 
     const seller = req?.user?._id;
-    console.log("seller id", seller);
+    //clg("seller id", seller);
     const imageFiles = req?.files || [];
-    // console.log(imageFiles);
+    // //clg(imageFiles);
 
     if (!productname || !price || !quantity || !seller) {
       return res
@@ -337,7 +341,7 @@ app.get("/products", async (req, res) => {
       .limit(6)
       .toArray();
 
-    // console.log(products);
+    // //clg(products);
     return res
       .status(200)
       .json(
@@ -351,7 +355,7 @@ app.get("/products", async (req, res) => {
       .limit(6)
       .toArray();
 
-    console.log("feature prioductss", products);
+    //clg("feature prioductss", products);
 
     return res
       .status(200)
@@ -397,12 +401,12 @@ app.get("/products", async (req, res) => {
 
 //get single product
 app.get("/product/:id", async (req, res) => {
-  console.log("router hited");
+  //clg("router hited");
   const { id } = req.params;
-  console.log(id);
+  //clg(id);
   try {
     const product = await productDb.findOne({ _id: new ObjectId(id) });
-    // console.log("after 2nd update", product);
+    // //clg("after 2nd update", product);
     return res
       .status(200)
       .json(new ApiResponse(200, product, "single product fetched"));
@@ -415,12 +419,12 @@ app.get("/product/:id", async (req, res) => {
 });
 
 //delete product
-app.delete("/product/:id", verifyJWT, verifyAdmin, async (req, res) => {
+app.delete("/product/:id", verifyJWT, verifyAdmin, async (req, res, next) => {
   const { id } = req.params;
-  console.log(id);
+  //clg(id);
   try {
     const product = await productDb.findOneAndDelete({ _id: new ObjectId(id) });
-    console.log(product);
+    //clg(product);
     return res
       .status(200)
       .json(new ApiResponse(200, product, "product deleted"));
@@ -438,7 +442,7 @@ app.put(
   upload.array("image", 5),
   verifyJWT,
   verifyAdmin,
-  async (req, res) => {
+  async (req, res, next) => {
     const { id } = req.params;
     const {
       productname,
@@ -449,10 +453,9 @@ app.put(
       price,
       quantity,
       isOrganic,
-      seller,
     } = req.body;
 
-    console.log(isOrganic);
+    // //clg(isOrganic);
 
     // const imageFiles = req?.files || [];
     const porduct = await productDb.findOneAndUpdate(
@@ -467,7 +470,6 @@ app.put(
           price: parseFloat(price),
           quantity: parseFloat(quantity),
           isOrganic: Boolean(isOrganic),
-          seller,
           updatedAt: new Date(),
         },
       },
@@ -492,14 +494,15 @@ app.patch(
   verifyAdmin,
   async (req, res) => {
     const { id } = req.params;
-    console.log(id);
+    console.log('prodcut id to update image',id)
+    //clg(id);
     const imageFiles = req?.files || [];
-    console.log(imageFiles);
+    //clg(imageFiles);
 
     try {
-      const product = await productDb.findOne({ _id: new ObjectId(id) });
+      const product = await productDb.findOne({ _id: new ObjectId(id.toString()) });
       if (!product) {
-        return res.status(404).json({ message: "Product not found" });
+        return res.status(404).json(new ApiError(404, "Product not found"));
       }
 
       const uploadedImages = [];
@@ -530,103 +533,120 @@ app.patch(
 );
 
 //delete product image
-app.patch("/productImage/:id", verifyJWT, verifyAdmin, async (req, res) => {
-  const { id } = req.params;
+app.patch(
+  "/productImage/:id",
+  verifyJWT,
+  verifyAdmin,
+  async (req, res, next) => {
+    const { id } = req.params;
+    console.log('prodcut id to delete image',id)
 
-  try {
-    const product = await productDb.findOne({ _id: new ObjectId(id) });
-    if (!product) {
-      return res.status(404).json(new ApiError(404, "Product not found"));
+    try {
+      const product = await productDb.findOne({ _id: new ObjectId(id) });
+      if (!product) {
+        return res.status(404).json(new ApiError(404, "Product not found"));
+      }
+
+      await productDb.updateOne(
+        { _id: new ObjectId(id) },
+        { $unset: { images: "" } }
+      );
+
+      const updatedProduct = await productDb.findOne({ _id: new ObjectId(id) });
+      // //clg("after update : ", updatedProduct);
+
+      return res.status(200).json({
+        status: 200,
+        data: updatedProduct,
+        message: "Product image deleted",
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: "Internal server error" });
     }
-
-    await productDb.updateOne(
-      { _id: new ObjectId(id) },
-      { $unset: { images: "" } }
-    );
-
-    const updatedProduct = await productDb.findOne({ _id: new ObjectId(id) });
-    // console.log("after update : ", updatedProduct);
-
-    return res.status(200).json({
-      status: 200,
-      data: updatedProduct,
-      message: "Product image deleted",
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: "Internal server error" });
   }
-});
+);
 
 //add featured product
-app.patch(`/feature-product/:id`, verifyAdmin, verifyJWT, async (req, res) => {
-  const { id } = req.params;
-  const { isFeatured } = req.body;
+app.patch(
+  `/feature-product/:id`,
+  verifyJWT,
+  verifyAdmin,
+  async (req, res, next) => {
+    const { id } = req.params;
+    const { isFeatured } = req.body;
+    // console.log(id)
 
-  try {
-    const product = await productDb.findOneAndUpdate(
-      { _id: new ObjectId(id) },
-      { $set: { isFeatured: Boolean(isFeatured) } },
-      { returnDocument: "after" }
-    );
-
-    if (!product) {
-      return res.status(404).json(new ApiError(404, "Product not found"));
-    }
-
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          product,
-          product.isFeatured
-            ? "✅ Product added to featured list"
-            : "❌ Product removed from featured list"
-        )
+    try {
+      const product = await productDb.findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: { isFeatured: Boolean(isFeatured) } },
+        { returnDocument: "after" }
       );
-  } catch (error) {
-    return res.status(500).json(new ApiError(500, error.message));
+
+      if (!product) {
+        return res.status(404).json(new ApiError(404, "Product not found"));
+      }
+
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            product,
+            product.isFeatured
+              ? "✅ Product added to featured list"
+              : "❌ Product removed from featured list"
+          )
+        );
+    } catch (error) {
+      return res.status(500).json(new ApiError(500, error.message));
+    }
   }
-});
+);
 
 //add organic product
-app.patch(`/orgaanic-product/:id`, verifyAdmin, verifyJWT, async (req, res) => {
-  const { id } = req.params;
-  const { isOrganic } = req.body;
-  console.log(id, isOrganic);
+app.patch(
+  `/orgaanic-product/:id`,
+  verifyJWT,
+  verifyAdmin,
+  async (req, res, next) => {
+    const { id } = req.params;
+    const { isOrganic } = req.body;
+    //clg(id, isOrganic);
 
-  try {
-    const product = await productDb.findOneAndUpdate(
-      { _id: new ObjectId(id) },
-      { $set: { isOrganic: Boolean(isOrganic) } },
-      { returnDocument: "after" }
-    );
-
-    if (!product) {
-      return res.status(404).json(new ApiError(404, "Product not found"));
-    }
-
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          product,
-          product.isOrganic
-            ? "✅ Product added to organic list"
-            : "❌ Product removed from organic list"
-        )
+    try {
+      const product = await productDb.findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: { isOrganic: Boolean(isOrganic) } },
+        { returnDocument: "after" }
       );
-  } catch (error) {
-    return res.status(500).json(new ApiError(500, error.message));
+
+      if (!product) {
+        return res.status(404).json(new ApiError(404, "Product not found"));
+      }
+
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            product,
+            product.isOrganic
+              ? "✅ Product added to organic list"
+              : "❌ Product removed from organic list"
+          )
+        );
+    } catch (error) {
+      return res.status(500).json(new ApiError(500, error.message));
+    }
   }
-});
+);
 
 //post review
-app.post("/review", verifyJWT, async (req, res) => {
+app.post("/review", verifyJWT, async (req, res, next) => {
   const { productId, userId, username, rating = 0, comment } = req.body;
-  console.log("from review :", productId, userId, username, rating, comment);
+  //clg("from review :", productId, userId, username, rating, comment);
 
   if (!productId || !userId) {
     return res.status(400).json(new ApiError(400, "Missing required fields"));
@@ -643,7 +663,7 @@ app.post("/review", verifyJWT, async (req, res) => {
     };
 
     const result = await reviewDb.insertOne(review);
-    // console.log(result);
+    // //clg(result);
 
     return res
       .status(201)
@@ -657,7 +677,7 @@ app.post("/review", verifyJWT, async (req, res) => {
 //get reviews by productId
 app.get("/reviews", async (req, res) => {
   const { productId } = req.query;
-  console.log(productId);
+  //clg(productId);
 
   try {
     const review = await reviewDb.find({ productId }).toArray();
@@ -678,7 +698,7 @@ app.get("/reviews", async (req, res) => {
 });
 
 //all users
-app.get("/admin-users", verifyJWT, verifyAdmin, async (req, res) => {
+app.get("/admin-users", verifyJWT, verifyAdmin, async (req, res, next) => {
   try {
     const users = await usersCollection.find().toArray();
     return res
@@ -693,29 +713,34 @@ app.get("/admin-users", verifyJWT, verifyAdmin, async (req, res) => {
 });
 
 //delete user
-app.delete("/admin-users/:id", verifyJWT, verifyAdmin, async (req, res) => {
-  const { id } = req.params;
-  // console.log(id);
-  try {
-    const user = await usersCollection.findOneAndDelete({
-      _id: new ObjectId(id),
-    });
-    if (!user) {
-      return res.status(404).json(new ApiError(404, "User not found"));
+app.delete(
+  "/admin-users/:id",
+  verifyJWT,
+  verifyAdmin,
+  async (req, res, next) => {
+    const { id } = req.params;
+    // //clg(id);
+    try {
+      const user = await usersCollection.findOneAndDelete({
+        _id: new ObjectId(id),
+      });
+      if (!user) {
+        return res.status(404).json(new ApiError(404, "User not found"));
+      }
+      return res
+        .status(200)
+        .json(new ApiResponse(200, user, "User deleted successfully"));
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json(new ApiError(500, "Failed to delete user"));
     }
-    return res
-      .status(200)
-      .json(new ApiResponse(200, user, "User deleted successfully"));
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json(new ApiError(500, "Failed to delete user"));
   }
-});
+);
 
 // update user role
 app.patch("/admin-users", verifyJWT, verifyAdmin, async (req, res, next) => {
-  console.log("PATCH /admin-users hit");
-  // console.log("Body:", req.body);
+  //clg("PATCH /admin-users hit");
+  // //clg("Body:", req.body);
   const { id, role } = req.body;
 
   try {
@@ -724,7 +749,7 @@ app.patch("/admin-users", verifyJWT, verifyAdmin, async (req, res, next) => {
       { $set: { role } },
       { returnDocument: "after" }
     );
-    // console.log(user);
+    // //clg(user);
 
     if (!user) {
       return res.status(404).json(new ApiError(404, "User not found"));
@@ -742,5 +767,6 @@ app.patch("/admin-users", verifyJWT, verifyAdmin, async (req, res, next) => {
 });
 
 app.listen(port, () => {
-  console.log(`${port}`);
+  //clg(`${port}`);
+  console.log(`Server is running on port ${port}`);
 });
