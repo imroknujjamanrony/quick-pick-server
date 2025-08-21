@@ -82,6 +82,28 @@ async function run() {
     res.send({count})
   })
 
+  app.post('/addblogs', async(req, res)=>{
+    const blogData = req.body;
+    console.log(blogData)
+    const result = await jinStoreBlogsCollection.insertOne(blogData)
+    res.send(result)
+
+  })
+
+  app.get('/addblogs', async(req, res)=>{
+    const cursore = jinStoreBlogsCollection.find()
+    const result = await cursore.toArray()
+    res.send(result)
+  })
+
+  app.delete('/addblogs/:id', async(req, res)=>{
+    const id = req.params.id
+    const query = {_id: new ObjectId(id)}
+    const result = await jinStoreBlogsCollection.deleteOne(query)
+    res.send(result)
+
+  })
+
 
     // res.send(result);
     // });
