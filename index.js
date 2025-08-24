@@ -141,8 +141,10 @@ const verifyAdmin = async (req, res, next) => {
     const user = req?.user;
     const isAdmin = user?.role == "ADMIN";
 
-    if (!isAdmin == 'ADMIN') {
-      return res.status(401).json(new ApiError(401, "Invalid access"));
+    console.log('from verify admin',isAdmin);
+
+    if (!isAdmin) {
+      throw new ApiError(401, "Invalid access");
     }
 
     next();
